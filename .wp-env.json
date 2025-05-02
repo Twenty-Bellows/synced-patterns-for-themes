@@ -4,14 +4,15 @@
 	"testsPort": 8979,
 	"plugins": ["."],
 	"themes": [
-		"WordPress/twentytwentyfive"
 	],
         "mappings": { 
-            "wp-content/themes": "./themes" 
+            "wp-content/themes": "./dev-assets/themes" 
         },
 	"config": {
 		"WP_UPLOAD_MAX_FILESIZE": "128M",
-		"WP_MEMORY_LIMIT": "256M"
+		"WP_MEMORY_LIMIT": "256M",
+		"WP_ENVIRONMENT_TYPE": "development",
+		"WP_DEVELOPMENT_MODE": "all"
 	}
 }
 

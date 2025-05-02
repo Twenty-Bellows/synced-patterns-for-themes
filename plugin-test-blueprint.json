@@ -1,0 +1,12 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"plugins": [ "plugin-check" ],
+	"steps": [
+		{
+			"step": "defineWpConfigConsts",
+			"consts": {
+				"WP_DEBUG": true
+			}
+		}
+	]
+}
