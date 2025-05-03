@@ -1,16 +1,31 @@
+  = Synced Patterns for Themes = 
+
   This is a utility WordPress Plugin that allows a theme to provide Synced Patterns.
 
-  Usage: put pattern files in a /synced-patterns directory in a theme.
+  == Usage ==
+
+  Add `Synced: true` to the metadata of a theme pattern file.
+
+  == Details == 
   
-  Patterns in this folder will have a SYNCED PATTERN post created and be available to users as SYNCED PATTERNS.
+  When the editor loads, patterns with the `Synced: true` are copied to the database as `wp-block` (just as if a user had created it themselves). This pattern can be edited by the user.
   
-  If a user edits this pattern in the editor, the post will be updated and used throughout the site.
+  Additionly, the pattern will ALSO be available as an unsynced pattern, allowing it to be used in templates and other patterns. This unsynced version of the pattern is a `<wp:block />` block that references the synced pattern in the database.  It is hidden from the inserter so that a user is only presented the synced version of the pattern in the editor.
+
+  == Limitations ==
+
+  If a user edits this pattern in the editor the theme file is not changed.
+
+  If a theme synced pattern file is changed the change is not propagated once it has been loaded into the database.
   
-  If the theme changes the pattern file it will be updated in the database.
-  
-  These themes will ALSO be registered as UNSYNCED patterns which are just a reference to the SYNCED pattern.
-  This allows the patterns to be used in templates by referencing their slug.  
-  These unsynced patterns are "hidden" and not shown to the user.
-  
-  IMPORTANT: Making changes in the THEME version of these patterns will CLOBBER the database version of the pattern.
-  
+  == Development ==
+
+  Node/NPM is used to install dependencies used for development.  Docker is used in combination with wp-env to run a local development environment.
+
+  `npm install` to install all dependencies
+
+  `npm run start` to start local development server (acces at http://localhost:8978). `npm run stop` to stop it.
+
+  Once the server has been started unit tests can be ran with `npm run test`.
+
+  See the `package.json` scripts for additional utilities.
