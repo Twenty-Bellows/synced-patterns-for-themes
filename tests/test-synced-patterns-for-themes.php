@@ -16,7 +16,7 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
 		parent::setUp();
 
 		// Create an instance of the class under test
-		$this->synced_patterns = new Synced_Patterns_For_Themes();
+		$this->synced_patterns = new Synced_Patterns_Loader();
 
 		// Create a temporary directory for the test patterns
 		$this->test_dir = sys_get_temp_dir() . '/synced-patterns-test';
