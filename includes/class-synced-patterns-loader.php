@@ -16,8 +16,7 @@ class Synced_Patterns_Loader {
 
 	function register_patterns() {
 
-		$theme    = wp_get_theme();
-		$pattern_files = glob($theme->get_stylesheet_directory() . '/patterns/*.php');
+		$pattern_files = glob(get_stylesheet_directory() . '/patterns/*.php');
 	
 		foreach ($pattern_files as $pattern_file) {
 			$pattern_data = get_file_data($pattern_file, array(
@@ -74,7 +73,7 @@ class Synced_Patterns_Loader {
 			$pattern_registry = WP_Block_Patterns_Registry::get_instance();
 
 			if ($pattern_registry->is_registered($pattern_data['slug'])) {
-				$success = $pattern_registry->unregister($pattern_data['slug']);
+				$pattern_registry->unregister($pattern_data['slug']);
 			}
 	
 			$pattern_registry->register(
@@ -118,8 +117,8 @@ class Synced_Patterns_Loader {
 						(isset($registered_category['slug']) && sanitize_title($registered_category['slug']) === $category) ||
 						(isset($registered_category['name']) && sanitize_title($registered_category['name']) === $category)
 					) {
-						$term = wp_insert_term($registered_category['name'], 'wp_pattern_category', array(
-							'slug' => $registered_category['slug'],
+						$term = wp_insert_term($registered_category['label'], 'wp_pattern_category', array(
+							'slug' => $registered_category['name'],
 							'description' => $registered_category['description'] ?? '',
 						));
 						$terms[] = (object) $term;

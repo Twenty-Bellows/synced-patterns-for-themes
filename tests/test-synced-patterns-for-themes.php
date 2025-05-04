@@ -1,5 +1,7 @@
 <?php
 
+require __DIR__ . '/../includes/class-synced-patterns-loader.php';
+
 /**
  * Test cases for the Synced Patterns for Themes plugin
  */
@@ -20,7 +22,7 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
 
 		// Create a temporary directory for the test patterns
 		$this->test_dir = sys_get_temp_dir() . '/synced-patterns-test';
-		$this->pattern_dir = $this->test_dir . '/synced-patterns';
+		$this->pattern_dir = $this->test_dir . '/patterns';
 		mkdir($this->test_dir);
 		mkdir($this->pattern_dir);
 
@@ -61,6 +63,7 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
  * Title: A Synced Theme Pattern
  * Slug: test/a-synced-theme-pattern
  * Categories: Featured
+ * Synced: yes 
  */
 ?>
 <!-- wp:paragraph -->
@@ -88,9 +91,9 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Test that an existing pattern post is updated when the pattern file changes
+	 * Test that an existing pattern post is not updated when the pattern file changes
 	 */
-	public function test_register_patterns_updates_existing_post() {
+	public function test_register_patterns_does_not_update_existing_post() {
 
 		$pattern_file = $this->pattern_dir . '/test-pattern.php';
 
@@ -100,10 +103,11 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
  * Title: Test Pattern
  * Slug: test-pattern 
  * Categories: Featured
+ * Synced: yes
  */
 ?>
 <!-- wp:paragraph -->
-<p>Old Content</p>
+<p>Original Content</p>
 <!-- /wp:paragraph -->';
 
 		file_put_contents($pattern_file, $pattern_content);
@@ -117,6 +121,7 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
  * Title: Test Pattern
  * Slug: test-pattern 
  * Categories: Featured
+ * Synced: yes
  */
 ?>
 <!-- wp:paragraph -->
@@ -133,13 +138,13 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
 		// Fetch the updated post and verify its content
 		$updated_post = get_page_by_path('test-pattern', OBJECT, 'wp_block');
 
-		$this->assertStringContainsString('Updated Content', $updated_post->post_content);
+		$this->assertStringContainsString('Original Content', $updated_post->post_content);
 	}
 
 	/**
 	 * Test that an existing pattern post can be updated by the user 
 	 */
-	public function test_register_patterns_does_not_update_existing_post() {
+	public function test_register_patterns_does_not_replace_modified_post() {
 		
 		$pattern_file = $this->pattern_dir . '/test-pattern.php';
 
@@ -149,6 +154,7 @@ class Synced_Patterns_For_Themes_Integration_Test extends WP_UnitTestCase {
  * Title: Test Pattern
  * Slug: test-pattern 
  * Categories: Featured
+ * Synced: yes
  */
 ?>
 <!-- wp:paragraph -->
