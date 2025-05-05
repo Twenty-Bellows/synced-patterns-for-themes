@@ -6,7 +6,7 @@ Stable tag:        1.0.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
-This is a utility WordPress Plugin that allows a theme to provide Synced Patterns.
+This is a utility WordPress Plugin that empowers themes to provide Synced Patterns.
 
 == Description ==
 
