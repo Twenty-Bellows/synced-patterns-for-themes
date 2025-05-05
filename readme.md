@@ -17,6 +17,8 @@
   If a user edits this pattern in the editor the theme file is not changed.
 
   If a theme synced pattern file is changed the change is not propagated once it has been loaded into the database.
+
+  Custom (PHP) logic included in a synced pattern will ONLY be executed the FIRST time the pattern is copied to the database, not every time that pattern is used.
   
   == Development ==
 
