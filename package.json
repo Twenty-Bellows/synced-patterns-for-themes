@@ -8,7 +8,7 @@
     "wp-env": "wp-env",
     "test": "wp-env run tests-cli --env-cwd=wp-content/plugins/synced-patterns-for-themes ./vendor/bin/phpunit",
     "plugin-zip": "wp-scripts plugin-zip",
-    "plugin-unpack": "rm -rf ./release && mkdir -p ./release && unzip -o ./synced-patterns-for-themes.zip -d ./release/synced-patterns-for-themes",
+    "plugin-unpack": "rm -rf ./release && mkdir -p ./release && unzip -o ./synced-patterns-for-themes.zip -d ./release",
     "plugin-test-env": "wp-now start --blueprint=plugin-test-blueprint.json --path=./release/synced-patterns-for-themes",
     "plugin-test": "npm run plugin-zip && npm run plugin-unpack && npm run plugin-test-env"
   },

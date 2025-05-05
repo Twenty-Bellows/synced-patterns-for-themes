@@ -3,9 +3,9 @@
  * @wordpress-plugin
  * Plugin Name: Synced Patterns for Themes
  * Description: Empower Themes to provide Synced Patterns to an environment
- * Version: 1.0
- * Author: pbking
- * Author URI: https://pbking.com
+ * Version: 1.0.0
+ * Author: twentybellows
+ * Author URI: https://twentybellows.com
  * License: GPL2
  * Text Domain: synced-patterns-for-themes 
  */
