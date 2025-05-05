@@ -1,6 +1,6 @@
 <?php
 
-require __DIR__ . '/../includes/class-synced-patterns-loader.php';
+require_once __DIR__ . '/../includes/class-synced-patterns-loader.php';
 
 /**
  * Test cases for the Synced Patterns for Themes plugin
