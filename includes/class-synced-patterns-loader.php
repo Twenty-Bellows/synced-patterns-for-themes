@@ -75,11 +75,12 @@ class Synced_Patterns_Loader {
 			if ($pattern_registry->is_registered($pattern_data['slug'])) {
 				$pattern_registry->unregister($pattern_data['slug']);
 			}
-	
+			
 			$pattern_registry->register(
 				$pattern_data['slug'],
 				array(
-					'title'   => $pattern_data['title'],
+					'title'   => $pattern_data['title'] . ' (Synced)',
+					'slug'   => $pattern_data['slug'],
 					'inserter' => false,
 					'content' => '<!-- wp:block {"ref":' . $post_id . '} /-->',
 				)

@@ -15,10 +15,5 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
-// If we are not in the admin area, do not load the plugin
-if ( ! is_admin() ) {
-	return;
-}
-
 require plugin_dir_path( __FILE__ ) . 'includes/class-synced-patterns-loader.php';
 $synced_patterns_loader = new Synced_Patterns_Loader();
