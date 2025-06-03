@@ -1,33 +1,98 @@
-  # Synced Patterns for Themes 
+# Synced Patterns for Themes
 
-  This is a utility WordPress Plugin that allows a theme to provide Synced Patterns.
+A WordPress plugin that empowers themes to provide synced patterns.
 
-  ## Usage
+## Overview
 
-  Add `Synced: true` to the metadata of a theme pattern file.
+This plugin enables theme developers to ship patterns that behave as synced patterns (reusable blocks) while maintaining the benefits of theme-bundled patterns. When a theme pattern is marked as synced, it automatically becomes available as a reusable block that updates across all instances when modified.
 
-  ## Details
-  
-  When the editor loads, patterns with the `Synced: true` are copied to the database as `wp-block` (just as if a user had created it themselves). This pattern can be edited by the user.
-  
-  Additionly, the pattern will ALSO be available as an unsynced pattern, allowing it to be used in templates and other patterns. This unsynced version of the pattern is a `<wp:block />` block that references the synced pattern in the database.  It is hidden from the inserter so that a user is only presented the synced version of the pattern in the editor.
+## Key Features
 
-  ## Limitations
+- **Theme-Provided Synced Patterns**: Convert any theme pattern into a synced pattern by adding a simple metadata flag
+- **Automatic Synchronization**: Updates to synced patterns propagate across all instances site-wide
+- **Block Bindings Support**: Full compatibility with WordPress block bindings
+- **Template Integration**: Use synced patterns in templates and template parts
+- **Seamless User Experience**: Synced patterns appear naturally in the pattern inserter
 
-  If a user edits this pattern in the editor the theme file is not changed.
+## Installation
 
-  If a theme synced pattern file is changed the change is not propagated once it has been loaded into the database.
+1. Download the plugin from the [WordPress Plugin Directory](https://wordpress.org/plugins/synced-patterns-for-themes/) or [GitHub](https://github.com/twenty-bellows/synced-patterns-for-themes)
+2. Upload to your `/wp-content/plugins/` directory
+3. Activate the plugin through the 'Plugins' menu in WordPress
 
-  Custom (PHP) logic included in a synced pattern will ONLY be executed the FIRST time the pattern is copied to the database, not every time that pattern is used.
-  
-  ## Development
+## Usage
 
-  Node/NPM is used to install dependencies used for development.  Docker is used in combination with wp-env to run a local development environment.
+### For Theme Developers
 
-  `npm install` to install all dependencies
+To make a theme pattern synced, add `Synced: true` to the pattern file's metadata header:
 
-  `npm run start` to start local development server (acces at http://localhost:8978). `npm run stop` to stop it.
+```php
+<?php
+/**
+ * Title: My Synced Pattern
+ * Slug: mytheme/my-pattern
+ * Categories: featured
+ * Synced: true
+ */
+?>
+<!-- Your pattern blocks here -->
+```
 
-  Once the server has been started unit tests can be ran with `npm run test`.
+### Using Synced Patterns in Templates
 
-  See the `package.json` scripts for additional utilities.
+Reference synced patterns in templates or other patterns using the pattern block:
+
+```html
+<!-- wp:pattern {"slug":"mytheme/my-pattern"} /-->
+```
+
+
+## Requirements
+
+- WordPress 6.6 or higher
+- PHP 7.2 or higher
+
+## Development
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/twenty-bellows/synced-patterns-for-themes.git
+
+# Install dependencies
+npm install
+
+# Start development environment (requires Docker)
+npm run start
+```
+
+The development server runs at http://localhost:8978
+
+### Available Commands
+
+- `npm run start` - Start the development environment
+- `npm run stop` - Stop the development environment
+- `npm run test` - Run unit tests (requires running environment)
+- `npm run build` - Build production assets
+
+### Testing
+
+Unit tests require a running development environment:
+
+```bash
+npm run start
+npm run test
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request to the [GitHub repository](https://github.com/twenty-bellows/synced-patterns-for-themes).
+
+## License
+
+This plugin is licensed under the GPL v2 or later.
+
+## Credits
+
+Developed by [Twenty Bellows](https://twentybellows.com)
