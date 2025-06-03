@@ -1,10 +1,133 @@
 <?php
 
+require_once __DIR__ . '/class-pattern-builder-post-type.php';
+
 class Synced_Patterns_Loader {
 
 	public function __construct() 
 	{
-		add_action( 'plugins_loaded', array( $this, 'register_patterns' ) );
+		add_action( 'init', array( $this, 'register_patterns' ) );
+		add_filter('rest_request_after_callbacks', [$this, 'inject_theme_synced_patterns'], 10, 3);
+		add_filter('rest_request_after_callbacks', [$this, 'handle_hijack_block_update'], 10, 3);
+	}
+
+	public function register_patterns() {
+
+		$pattern_registry = WP_Block_Patterns_Registry::get_instance();
+
+		$pattern_files = $this->get_synced_patterns_from_theme_files();
+
+		foreach ($pattern_files as $pattern_file_data) {
+
+			$pattern_slug = $pattern_file_data['slug'];
+
+			$pattern_post = get_page_by_path(sanitize_title($pattern_slug), OBJECT, 'pb_block');
+
+			if ( $pattern_post) {
+				$post_id = $pattern_post->ID;
+				$pattern_post->post_title = $pattern_file_data['title'];
+				$pattern_post->post_content = self::render_pattern($pattern_file_data['file']);
+				wp_update_post($pattern_post);
+			} 
+			else {
+				$post_id = wp_insert_post(array(
+					'post_title' => $pattern_file_data['title'],
+					'post_name' => $pattern_slug,
+					'post_content' => self::render_pattern($pattern_file_data['file']),
+					'post_type' => 'pb_block',
+					'post_status' => 'publish',
+					'ping_status' => 'closed',
+					'comment_status' => 'closed'
+				));
+			}
+
+			if (! empty($pattern_file_data['categories'])) {
+				wp_set_object_terms($post_id, $pattern_file_data['categories'], 'wp_pattern_category');
+			}
+
+			// UN register the unsynced pattern and RE register it with the reference to the synced pattern
+			// this pattern injects a synced pattern block as the content.
+			// and allows it to be used by anything that uses the wp:pattern with its slug
+
+			if ($pattern_registry->is_registered($pattern_slug)) {
+				$pattern_registry->unregister($pattern_slug);
+			}
+			
+			$pattern_registry->register(
+				$pattern_slug,
+				array(
+					'title'   => $pattern_file_data['title'],
+					'slug'   => $pattern_slug,
+					'inserter' => false,
+					'content' => '<!-- wp:block {"ref":' . $post_id . '} /-->',
+				)
+			);
+		}
+	}
+
+	public function inject_theme_synced_patterns($response, $server, $request)
+	{
+		// Requesting a single pattern.  Inject the synced theme pattern.
+		if (preg_match('#/wp/v2/blocks/(?P<id>\d+)#', $request->get_route(), $matches)) {
+			$block_id = intval($matches['id']);
+			$pb_block = get_post($block_id);
+			if ($pb_block && $pb_block->post_type === 'pb_block') {
+				$data = $this->format_pb_block_response($pb_block, $request);
+				$response = new WP_REST_Response($data);
+			}
+		}
+
+		// Requesting all patterns.  Inject all of the synced theme patterns.
+		else if ($request->get_route() === '/wp/v2/blocks') {
+
+			$data = $response->get_data();
+			$pattern_files = $this->get_synced_patterns_from_theme_files();
+
+			foreach ($pattern_files as $pattern) {
+				$post = get_page_by_path(sanitize_title($pattern['slug']), OBJECT, 'pb_block');
+				$data[] = $this->format_pb_block_response($post, $request);
+			}
+
+			$response->set_data($data);
+		}
+
+		return $response;
+	}
+
+	public function format_pb_block_response($post, $request)
+	{
+		// Use WordPress core's REST controller for proper formatting
+		$controller = new WP_REST_Blocks_Controller('wp_block');
+
+		// Change the post type to wp_block for proper magic making
+		$post->post_type = 'wp_block';
+
+		// Use the controller's prepare_item_for_response method
+		$response = $controller->prepare_item_for_response($post, $request);
+		$data = $response->get_data();
+
+		return $data;
+	}
+
+	public function handle_hijack_block_update($response, $handler, $request)
+	{
+		$route = $request->get_route();
+
+		if (preg_match('#^/wp/v2/blocks/(\d+)$#', $route, $matches) && $request->get_method() === 'PUT') {
+
+			$id = intval($matches[1]);
+			$post = get_post($id);
+
+			if ($post && $post->post_type === 'pb_block') {
+				// pb_blocks cannot be saved.  return an error response
+				return new WP_Error(
+					'rest_cannot_update_pb_block',
+					__('Synced Theme Patterns cannot be updated in the editor.', 'synced-patterns-for-themes'),
+					array('status' => 403)
+				);
+			}
+		}
+		return $response;
 	}
 
 	function render_pattern($pattern_file)
@@ -14,10 +137,11 @@ class Synced_Patterns_Loader {
 		return ob_get_clean();
 	}
 
-	function register_patterns() {
-
+	private function get_synced_patterns_from_theme_files()
+	{
 		$pattern_files = glob(get_stylesheet_directory() . '/patterns/*.php');
-	
+		$patterns = [];
+
 		foreach ($pattern_files as $pattern_file) {
 			$pattern_data = get_file_data($pattern_file, array(
 				'title'         => 'Title',
@@ -38,99 +162,13 @@ class Synced_Patterns_Loader {
 				continue;
 			}
 
-			// check if the pattern already exists
-			$pattern_post = get_page_by_path(sanitize_title($pattern_data['slug']), OBJECT, 'wp_block');
+			$pattern_data['file'] = $pattern_file;
 
-			if ( $pattern_post) {
-				$post_id = $pattern_post->ID;
-			} 
-			else {
-				// the post does not exist.  create it.
-				$post_id = wp_insert_post(array(
-					'post_title' => $pattern_data['title'],
-					'post_name' => $pattern_data['slug'],
-					'post_content' => self::render_pattern($pattern_file),
-					'post_type' => 'wp_block',
-					'post_status' => 'publish',
-					'ping_status' => 'closed',
-					'comment_status' => 'closed',
-					'meta_input' => array(
-						'wp_pattern_sync_status' => $pattern_data['synced'] === 'yes' ? "" : "unsynced",
-					),
-				));
-
-				// Set the categories of the post
-				$categories = self::get_pattern_categories($pattern_data);
-
-				if (! empty($categories)) {
-					wp_set_object_terms($post_id, $categories, 'wp_pattern_category');
-				}
-			}
-
-			// UN register the unsynced pattern and RE register it with the reference to the synced pattern
-			// this pattern injects a synced pattern block as the content.
-			// and allows it to be used by anything that uses the wp:pattern with its slug
-			$pattern_registry = WP_Block_Patterns_Registry::get_instance();
-
-			if ($pattern_registry->is_registered($pattern_data['slug'])) {
-				$pattern_registry->unregister($pattern_data['slug']);
-			}
-			
-			$pattern_registry->register(
-				$pattern_data['slug'],
-				array(
-					'title'   => $pattern_data['title'] . ' (Synced)',
-					'slug'   => $pattern_data['slug'],
-					'inserter' => false,
-					'content' => '<!-- wp:block {"ref":' . $post_id . '} /-->',
-				)
-			);
+			$patterns[] = $pattern_data;
 		}
+
+		return $patterns;
 	}
 
-	function get_pattern_categories($pattern_data)
-	{
-		//get the default pattern categories
-		$registered_pattern_categories = WP_Block_Pattern_Categories_Registry::get_instance()->get_all_registered();
 
-		$category_ids = array();
-		$categories = explode(',', $pattern_data['categories']);
-		$terms = get_terms(array(
-			'taxonomy' => 'wp_pattern_category',
-			'hide_empty' => false,
-			'fields' => 'all',
-
-		));
-		foreach ($categories as $category) {
-			$category = sanitize_title($category);
-			$found = false;
-			foreach ($terms as $term) {
-				if (sanitize_title($term->name) === $category || sanitize_title($term->slug) === $category) {
-					$category_ids[] = $term->term_id;
-					$found = true;
-					break;
-				}
-			}
-			if (! $found) {
-				// See if it's in the registered_pattern_categories
-				foreach ($registered_pattern_categories as $registered_category) {
-					if (
-						(isset($registered_category['slug']) && sanitize_title($registered_category['slug']) === $category) ||
-						(isset($registered_category['name']) && sanitize_title($registered_category['name']) === $category)
-					) {
-						$term = wp_insert_term($registered_category['label'], 'wp_pattern_category', array(
-							'slug' => $registered_category['name'],
-							'description' => $registered_category['description'] ?? '',
-						));
-						$terms[] = (object) $term;
-						$category_ids[] = $term['term_id'];
-						$found = true;
-						break;
-					}
-				}
-			}
-			// if the term is still not found then I guess we're just out of luck.
-		}
-		return $category_ids;
-	}
 }
