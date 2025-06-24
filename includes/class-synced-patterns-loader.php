@@ -4,11 +4,14 @@ require_once __DIR__ . '/class-pattern-builder-post-type.php';
 
 class Synced_Patterns_Loader {
 
+private static $synced_theme_patterns = [];
+
 	public function __construct() 
 	{
 		add_action( 'init', array( $this, 'register_patterns' ) );
 		add_filter('rest_request_after_callbacks', [$this, 'inject_theme_synced_patterns'], 10, 3);
 		add_filter('rest_request_after_callbacks', [$this, 'handle_hijack_block_update'], 10, 3);
+		add_filter('pre_render_block', [$this, 'pass_pattern_content_to_referenced_patterns'], 10, 2);
 	}
 
 	public function register_patterns() {
@@ -22,6 +25,8 @@ class Synced_Patterns_Loader {
 			$pattern_slug = $pattern_file_data['slug'];
 
 			$pattern_post = get_page_by_path(sanitize_title($pattern_slug), OBJECT, 'pb_block');
+
+			self::$synced_theme_patterns[$pattern_slug] = $pattern_post->ID;
 
 			if ( $pattern_post) {
 				$post_id = $pattern_post->ID;
@@ -122,7 +127,7 @@ class Synced_Patterns_Loader {
 				// pb_blocks cannot be saved.  return an error response
 				return new WP_Error(
 					'rest_cannot_update_pb_block',
-					__('Synced Theme Patterns cannot be updated in the editor.', 'synced-patterns-for-themes'),
+					__('Synced Theme Patterns cannot be updated in the editor without additional tools.', 'synced-patterns-for-themes'),
 					array('status' => 403)
 				);
 			}
@@ -170,5 +175,47 @@ class Synced_Patterns_Loader {
 		return $patterns;
 	}
 
+	/**
+	 * Filters pattern block data to apply attributes to nested wp:block.
+	 * This allows patterns with content attributes to pass those attributes down to the nested wp:block.
+	 *
+	 * @param array $parsed_block The parsed block data.
+	 * @param array $source_block The original block data.
+	 * @return array Modified block data.
+	 */
+	public function pass_pattern_content_to_referenced_patterns($pre_render, $parsed_block)
+	{
+		// Only process wp:pattern blocks
+		if ($parsed_block['blockName'] !== 'core/pattern') {
+			return $pre_render;
+		}
 
+		// Extract attributes from the pattern block
+		$pattern_attrs = isset($parsed_block['attrs']) ? $parsed_block['attrs'] : [];
+
+		$slug = $pattern_attrs['slug'] ?? '';
+
+		// Remove attributes we don't want to pass down
+		unset($pattern_attrs['slug']);
+
+		// If no attributes to apply, return as-is
+		if (empty($pattern_attrs)) {
+			return $pre_render;
+		}
+
+		$synced_pattern_id = self::$synced_theme_patterns[$slug] ?? null;
+
+		// if there is a synced_pattern_id then contruct the block with a reference to the synced pattern that also has the rest of the pattern's attributes and render it.
+		if ($synced_pattern_id) {
+			$block_attributes = array_merge(
+				['ref' => $synced_pattern_id],
+				$pattern_attrs
+			);
+			$block_attributes = wp_json_encode($block_attributes);
+			$block_string = "<!-- wp:block $block_attributes /-->";
+			return do_blocks($block_string);
+		}
+
+		return $pre_render;
+	}
 }
