@@ -5,6 +5,7 @@
   "scripts": {
     "start": "wp-env start --xdebug",
     "stop": "wp-env stop",
+		"build": "wp-scripts build --webpack-copy-php --experimental-modules",
     "wp-env": "wp-env",
     "test": "wp-env run tests-cli --env-cwd=wp-content/plugins/synced-patterns-for-themes ./vendor/bin/phpunit",
     "plugin-zip": "wp-scripts plugin-zip",
@@ -13,9 +14,15 @@
     "plugin-test": "npm run plugin-zip && npm run plugin-unpack && npm run plugin-test-env"
   },
   "devDependencies": {
+    "@wordpress/block-editor": "^14.20.0",
+    "@wordpress/blocks": "^14.14.0",
+    "@wordpress/data": "^10.25.0",
+    "@wordpress/element": "^6.25.0",
     "@wordpress/env": "^10.9.0",
+    "@wordpress/hooks": "^4.25.0",
     "@wordpress/scripts": "^30.15.0",
-    "@wp-now/wp-now": "^0.1.74"
+    "@wp-now/wp-now": "^0.1.74",
+    "clean-webpack-plugin": "^4.0.0"
   },
   "author": "pbking",
   "license": "ISC",

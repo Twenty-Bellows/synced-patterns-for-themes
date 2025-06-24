@@ -6,6 +6,28 @@ class Pattern_Builder_Post_Type
 	{
 		add_action('init', [$this, 'register_pb_block_post_type']);
 		add_filter('render_block', [$this, 'render_pb_blocks'] , 10, 2);
+		add_filter('register_block_type_args', [$this, 'add_content_attribute_to_core_pattern_block'] , 10, 2);
+	}
+
+	/**
+	 * Adds a "content" attribute to the core/pattern block type.
+	 * This is used to store the pattern overrides for the block.
+	 *
+	 * @param array $args The block type arguments.
+	 * @param string $block_type The block type name.
+	 * @return array
+	 */
+	public function add_content_attribute_to_core_pattern_block($args, $block_type)
+	{
+		if ($block_type === 'core/pattern') {
+			$extra_attributes = array(
+				"content" => array(
+					"type" => "object",
+				)
+			);
+			$args['attributes'] = array_merge($args['attributes'], $extra_attributes);
+		}
+		return $args;
 	}
 
 	/**
