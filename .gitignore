@@ -4,3 +4,4 @@
 /release/
 *.zip
 .phpunit.result.cache
+/svn/
