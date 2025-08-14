@@ -36,8 +36,8 @@ class Pattern_Builder_Post_Type
 	public function register_pb_block_post_type()
 	{
 		$labels = [
-			'name'               => __('PB Blocks', 'pattern-builder'),
-			'singular_name'      => __('PB Block', 'pattern-builder'),
+			'name'               => __('PB Blocks', 'synced-patterns-for-themes'),
+			'singular_name'      => __('PB Block', 'synced-patterns-for-themes'),
 		];
 
 		$args = [
