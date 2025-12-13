@@ -26,14 +26,21 @@ private static $synced_theme_patterns = [];
 
 			$pattern_post = get_page_by_path(sanitize_title($pattern_slug), OBJECT, 'pb_block');
 
-			self::$synced_theme_patterns[$pattern_slug] = $pattern_post->ID;
+			$file_modified_time = filemtime($pattern_file_data['file']);
 
 			if ( $pattern_post) {
 				$post_id = $pattern_post->ID;
-				$pattern_post->post_title = $pattern_file_data['title'];
-				$pattern_post->post_content = self::render_pattern($pattern_file_data['file']);
-				wp_update_post($pattern_post);
-			} 
+				self::$synced_theme_patterns[ $pattern_slug ] = $post_id;
+				$post_modified_time = strtotime($pattern_post->post_modified_gmt);
+
+				if ( $file_modified_time > $post_modified_time ) {
+					$pattern_post->post_title = $pattern_file_data['title'];
+					$pattern_post->post_content = self::render_pattern($pattern_file_data['file']);
+					$pattern_post->post_modified = gmdate('Y-m-d H:i:s', $file_modified_time);
+					$pattern_post->post_modified_gmt = gmdate('Y-m-d H:i:s', $file_modified_time);
+					wp_update_post($pattern_post);
+				}
+			}
 			else {
 				$post_id = wp_insert_post(array(
 					'post_title' => $pattern_file_data['title'],
@@ -42,8 +49,11 @@ private static $synced_theme_patterns = [];
 					'post_type' => 'pb_block',
 					'post_status' => 'publish',
 					'ping_status' => 'closed',
-					'comment_status' => 'closed'
+					'comment_status' => 'closed',
+					'post_modified' => gmdate('Y-m-d H:i:s', $file_modified_time),
+					'post_modified_gmt' => gmdate('Y-m-d H:i:s', $file_modified_time),
 				));
+				self::$synced_theme_patterns[ $pattern_slug ] = $post_id;
 			}
 
 			if (! empty($pattern_file_data['categories'])) {
