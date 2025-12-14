@@ -163,7 +163,8 @@ private static $synced_theme_patterns = [];
 			));
 
 			// if the pattern is not synced skip it 
-			if ($pattern_data['synced'] !== 'yes') {
+			$synced_value = strtolower(trim($pattern_data['synced']));
+			if (!in_array($synced_value, ['true', 'yes', '1'], true)) {
 				continue;
 			}
 
