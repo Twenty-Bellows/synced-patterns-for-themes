@@ -129,13 +129,7 @@ class Synced_Patterns {
 		$slugs = array();
 
 		foreach ( self::get_pattern_directories() as $directory ) {
-			$files = glob( $directory . '/*.php' );
-
-			if ( ! is_array( $files ) ) {
-				continue;
-			}
-
-			foreach ( $files as $file ) {
+			foreach ( self::get_pattern_files( $directory ) as $file ) {
 				$headers = get_file_data(
 					$file,
 					array(
@@ -151,6 +145,58 @@ class Synced_Patterns {
 		}
 
 		return $slugs;
+	}
+
+	/**
+	 * Lists the pattern files in a directory, the ones core registers.
+	 *
+	 * Core reads `patterns/` to any depth, so a theme can file its patterns in
+	 * folders, and a pattern that is registered but not found here is inserted
+	 * as a copy however its header reads.
+	 *
+	 * @param string $directory Absolute path of a `patterns` directory.
+	 * @return string[] Absolute file paths.
+	 */
+	private static function get_pattern_files( string $directory ): array {
+		/** This filter is documented in wp-includes/class-wp-theme.php */
+		$files = apply_filters( 'theme_block_pattern_files', self::find_php_files( $directory ), $directory ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own filter.
+
+		return array_values( array_filter( (array) $files, 'is_string' ) );
+	}
+
+	/**
+	 * Finds the PHP files under a directory, skipping what `WP_Theme::scandir()` skips.
+	 *
+	 * @param string $directory     Absolute directory path.
+	 * @param string $relative_path The directory's path below the one the search began in.
+	 * @return string[] Absolute file paths, keyed by their path below that one.
+	 */
+	private static function find_php_files( string $directory, string $relative_path = '' ): array {
+		$entries = scandir( $directory );
+		$files   = array();
+
+		if ( ! is_array( $entries ) ) {
+			return $files;
+		}
+
+		/** This filter is documented in wp-includes/class-wp-theme.php */
+		$exclusions = (array) apply_filters( 'theme_scandir_exclusions', array( 'CVS', 'node_modules', 'vendor', 'bower_components' ) ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- core's own filter.
+
+		foreach ( $entries as $entry ) {
+			if ( '.' === $entry[0] || in_array( $entry, $exclusions, true ) ) {
+				continue;
+			}
+
+			$path = $directory . '/' . $entry;
+
+			if ( is_dir( $path ) ) {
+				$files = array_merge( $files, self::find_php_files( $path, $relative_path . $entry . '/' ) );
+			} elseif ( '.php' === substr( $entry, -4 ) ) {
+				$files[ $relative_path . $entry ] = $path;
+			}
+		}
+
+		return $files;
 	}
 
 	/**

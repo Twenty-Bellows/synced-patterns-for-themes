@@ -46,14 +46,7 @@ class Test_Synced_Patterns extends Pattern_Test_Case {
 		remove_filter( 'stylesheet_directory', array( $this, 'filter_theme_directory' ) );
 		remove_filter( 'template_directory', array( $this, 'filter_theme_directory' ) );
 
-		foreach ( (array) glob( $this->theme_dir . '/patterns/*' ) as $file ) {
-			unlink( $file );
-		}
-
-		if ( is_dir( $this->theme_dir . '/patterns' ) ) {
-			rmdir( $this->theme_dir . '/patterns' );
-			rmdir( $this->theme_dir );
-		}
+		$this->remove_directory( $this->theme_dir );
 
 		parent::tear_down();
 	}
@@ -68,16 +61,42 @@ class Test_Synced_Patterns extends Pattern_Test_Case {
 	}
 
 	/**
+	 * Removes a directory and everything in it.
+	 *
+	 * @param string $directory Absolute directory path.
+	 * @return void
+	 */
+	private function remove_directory( string $directory ): void {
+		if ( ! is_dir( $directory ) ) {
+			return;
+		}
+
+		$entries = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $directory, FilesystemIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::CHILD_FIRST
+		);
+
+		foreach ( $entries as $entry ) {
+			$entry->isDir() ? rmdir( $entry->getPathname() ) : unlink( $entry->getPathname() );
+		}
+
+		rmdir( $directory );
+	}
+
+	/**
 	 * Writes a pattern file into the stand-in theme.
 	 *
-	 * @param string $name    File name, without extension.
+	 * @param string $name    File name below `patterns/`, without extension.
 	 * @param string $slug    Pattern slug.
 	 * @param string $headers Extra header lines.
 	 * @return void
 	 */
 	private function write_pattern_file( string $name, string $slug, string $headers = '' ): void {
+		$file = $this->theme_dir . '/patterns/' . $name . '.php';
+
+		wp_mkdir_p( dirname( $file ) );
 		file_put_contents(
-			$this->theme_dir . '/patterns/' . $name . '.php',
+			$file,
 			"<?php\n/**\n * Title: {$name}\n * Slug: {$slug}\n{$headers} */\n?>\n"
 			. '<!-- wp:paragraph --><p>' . $name . '</p><!-- /wp:paragraph -->'
 		);
@@ -93,6 +112,40 @@ class Test_Synced_Patterns extends Pattern_Test_Case {
 		$this->assertSame( array( 'test/hero' ), Synced_Patterns::get_slugs() );
 		$this->assertTrue( Synced_Patterns::is_synced( 'test/hero' ) );
 		$this->assertFalse( Synced_Patterns::is_synced( 'test/plain' ) );
+	}
+
+	/**
+	 * Core registers a pattern filed in a folder below `patterns/`, as Pattern
+	 * Builder files the ones it installs, so it is found there too.
+	 */
+	public function test_patterns_in_folders_are_read() {
+		$this->write_pattern_file( 'hero', 'test/hero', " * Synced: yes\n" );
+		$this->write_pattern_file( 'acme/kit/card', 'acme/kit/card', " * Synced: yes\n" );
+		$this->write_pattern_file( 'acme/kit/plain', 'acme/kit/plain' );
+
+		$this->assertEqualsCanonicalizing( array( 'test/hero', 'acme/kit/card' ), Synced_Patterns::get_slugs() );
+	}
+
+	/**
+	 * A file core would not register is not read either: one in a hidden
+	 * folder, or one a filter took off core's list.
+	 */
+	public function test_files_core_skips_are_skipped() {
+		$this->write_pattern_file( '.drafts/hidden', 'test/hidden', " * Synced: yes\n" );
+		$this->write_pattern_file( 'kit/removed', 'test/removed', " * Synced: yes\n" );
+		$this->write_pattern_file( 'kit/kept', 'test/kept', " * Synced: yes\n" );
+
+		$remove = static function ( $files ) {
+			unset( $files['kit/removed.php'] );
+
+			return $files;
+		};
+
+		add_filter( 'theme_block_pattern_files', $remove );
+		$slugs = Synced_Patterns::get_slugs();
+		remove_filter( 'theme_block_pattern_files', $remove );
+
+		$this->assertSame( array( 'test/kept' ), $slugs );
 	}
 
 	/**
