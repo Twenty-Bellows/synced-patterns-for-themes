@@ -54,6 +54,119 @@ class Test_Editor_Support extends Pattern_Test_Case {
 	}
 
 	/**
+	 * Saves a template for the active theme the way the Site Editor stores
+	 * one: as a post filed under the theme.
+	 *
+	 * @param string $content   Template content.
+	 * @param string $post_type `wp_template` or `wp_template_part`.
+	 * @param string $slug      Template slug.
+	 * @return string The template's ID, as the REST API names it.
+	 */
+	private function create_template( string $content, string $post_type = 'wp_template', string $slug = 'archive' ): string {
+		$post_id = self::factory()->post->create(
+			array(
+				'post_type'    => $post_type,
+				'post_name'    => $slug,
+				'post_title'   => $slug,
+				'post_status'  => 'publish',
+				'post_content' => $content,
+			)
+		);
+
+		wp_set_post_terms( $post_id, get_stylesheet(), 'wp_theme' );
+
+		return get_stylesheet() . '//' . $slug;
+	}
+
+	/**
+	 * Requests a templates route the way the Site Editor does.
+	 *
+	 * Templates need `edit_theme_options`, which an editor doesn't have, so
+	 * the request is made as an administrator.
+	 *
+	 * @param string $method      HTTP method.
+	 * @param string $route       REST route.
+	 * @param array  $params      Request parameters.
+	 * @param bool   $from_editor Whether the request counts as the editor's.
+	 * @return array The response data.
+	 */
+	private function request_templates( string $method, string $route, array $params = array(), bool $from_editor = true ): array {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$request = new WP_REST_Request( $method, $route );
+		$request->set_param( 'context', 'edit' );
+
+		foreach ( $params as $name => $value ) {
+			$request->set_param( $name, $value );
+		}
+
+		$is_editor_request = $from_editor ? '__return_true' : '__return_false';
+
+		add_filter( 'synced_patterns_for_themes_is_editor_request', $is_editor_request );
+		$response = rest_get_server()->dispatch( $request );
+		remove_filter( 'synced_patterns_for_themes_is_editor_request', $is_editor_request );
+
+		$this->assertFalse( $response->is_error(), wp_json_encode( $response->get_data() ) );
+
+		return $response->get_data();
+	}
+
+	/**
+	 * Finds every block of one type in a tree of parsed blocks.
+	 *
+	 * @param array[] $blocks Parsed blocks.
+	 * @param string  $name   Block name.
+	 * @return array[] The blocks, depth first.
+	 */
+	private function find_blocks( array $blocks, string $name ): array {
+		$found = array();
+
+		foreach ( $blocks as $block ) {
+			if ( $name === $block['blockName'] ) {
+				$found[] = $block;
+			}
+
+			$found = array_merge( $found, $this->find_blocks( $block['innerBlocks'], $name ) );
+		}
+
+		return $found;
+	}
+
+	/**
+	 * A synced hero placed in a group, with its slot filled.
+	 *
+	 * @return string Block markup.
+	 */
+	private function template_placing_a_synced_hero(): string {
+		$hero = $this->register_pattern( 'test/hero', $this->bound_heading() );
+		$this->mark_synced( $hero );
+
+		return '<!-- wp:group --><div class="wp-block-group">'
+			. $this->pattern_block( $hero, array( 'headline' => array( 'content' => 'From the template' ) ) )
+			. '</div><!-- /wp:group -->';
+	}
+
+	/**
+	 * Asserts that template content still references the synced hero, with
+	 * the content the template gave it.
+	 *
+	 * @param string $markup Template content from a response.
+	 * @return void
+	 */
+	private function assert_keeps_the_hero( string $markup ): void {
+		$references = $this->find_blocks( parse_blocks( $markup ), 'core/pattern' );
+
+		$this->assertCount( 1, $references, 'The synced pattern should still be a reference.' );
+		$this->assertSame( 'test/hero', $references[0]['attrs']['slug'] );
+		$this->assertSame(
+			array( 'headline' => array( 'content' => 'From the template' ) ),
+			$references[0]['attrs']['content'],
+			'The reference should keep the content the template gave it.'
+		);
+		$this->assertStringNotContainsString( 'Default headline', $markup );
+	}
+
+	/**
 	 * The patterns the editor lists have their content composed into them.
 	 */
 	public function test_patterns_endpoint_composes_content() {
@@ -214,6 +327,197 @@ class Test_Editor_Support extends Pattern_Test_Case {
 		remove_filter( 'synced_patterns_for_themes_is_editor_request', '__return_true' );
 
 		$this->assertStringContainsString( 'In a list', $filtered[0]->content );
+	}
+
+	/**
+	 * A template the Site Editor loads keeps its synced references.
+	 *
+	 * The filters above run before the templates controller prepares its
+	 * response, and the controller then runs core's `resolve_pattern_blocks()`
+	 * over the content, which inlines every reference, synced or not, and drops
+	 * the content along the way. So this goes through the route itself.
+	 */
+	public function test_template_route_keeps_synced_references() {
+		$id = $this->create_template( $this->template_placing_a_synced_hero() );
+
+		$template = $this->request_templates( 'GET', '/wp/v2/templates/' . $id );
+
+		$this->assert_keeps_the_hero( $template['content']['raw'] );
+	}
+
+	/**
+	 * A template part keeps its synced references the same way.
+	 */
+	public function test_template_part_route_keeps_synced_references() {
+		$id = $this->create_template( $this->template_placing_a_synced_hero(), 'wp_template_part', 'header' );
+
+		$part = $this->request_templates( 'GET', '/wp/v2/template-parts/' . $id );
+
+		$this->assert_keeps_the_hero( $part['content']['raw'] );
+	}
+
+	/**
+	 * A template that isn't stored as a post keeps them as well.
+	 *
+	 * A theme's file and a plugin's template both pass through core's filters
+	 * on the way to the controller, so what the editor is sent is recomposed
+	 * from what those filters left. A registered template stands in for both,
+	 * since the test theme has no template files.
+	 */
+	public function test_plugin_template_route_keeps_synced_references() {
+		register_block_template( 'synced-patterns-test//plugin-archive', array( 'content' => $this->template_placing_a_synced_hero() ) );
+
+		try {
+			$template = $this->request_templates( 'GET', '/wp/v2/templates/' . get_stylesheet() . '//plugin-archive' );
+		} finally {
+			unregister_block_template( 'synced-patterns-test//plugin-archive' );
+		}
+
+		$this->assertSame( 'plugin', $template['source'] );
+		$this->assert_keeps_the_hero( $template['content']['raw'] );
+	}
+
+	/**
+	 * A customized template has its content written in for the editor too.
+	 *
+	 * Core builds a template stored as a post without running the
+	 * `get_block_template` filter, so it never reaches the composing above,
+	 * and an unsynced pattern that carries content would come out with the
+	 * pattern's placeholder copy.
+	 */
+	public function test_customized_template_route_writes_content_in() {
+		$hero = $this->register_pattern( 'test/hero', $this->bound_heading() );
+		$id   = $this->create_template( $this->pattern_block( $hero, array( 'headline' => array( 'content' => 'From the template' ) ) ) );
+
+		$template = $this->request_templates( 'GET', '/wp/v2/templates/' . $id );
+
+		$this->assertStringContainsString( 'From the template', $template['content']['raw'] );
+		$this->assertStringNotContainsString( 'Default headline', $template['content']['raw'] );
+	}
+
+	/**
+	 * The list of templates keeps them too.
+	 */
+	public function test_template_list_keeps_synced_references() {
+		$id = $this->create_template( $this->template_placing_a_synced_hero() );
+
+		$templates = array_column( $this->request_templates( 'GET', '/wp/v2/templates' ), null, 'id' );
+
+		$this->assertArrayHasKey( $id, $templates );
+		$this->assert_keeps_the_hero( $templates[ $id ]['content']['raw'] );
+	}
+
+	/**
+	 * So does the fallback the Site Editor seeds a new template from.
+	 */
+	public function test_template_lookup_keeps_synced_references() {
+		$this->create_template( $this->template_placing_a_synced_hero() );
+
+		$fallback = $this->request_templates( 'GET', '/wp/v2/templates/lookup', array( 'slug' => 'archive' ) );
+
+		$this->assert_keeps_the_hero( $fallback['content']['raw'] );
+	}
+
+	/**
+	 * Saving a template keeps the references the editor sends back, in what
+	 * is stored and in the response the editor carries on from.
+	 */
+	public function test_saving_a_template_keeps_synced_references() {
+		$markup = $this->template_placing_a_synced_hero();
+		$id     = $this->create_template( '<!-- wp:paragraph --><p>Before</p><!-- /wp:paragraph -->' );
+
+		$template = $this->request_templates( 'POST', '/wp/v2/templates/' . $id, array( 'content' => $markup ) );
+
+		$this->assert_keeps_the_hero( $template['content']['raw'] );
+		$this->assert_keeps_the_hero( get_post_field( 'post_content', $template['wp_id'] ) );
+	}
+
+	/**
+	 * Saving a template that took its synced pattern out answers with what was
+	 * saved, not with the content the template had when it was loaded.
+	 */
+	public function test_saving_a_template_without_synced_patterns_answers_with_what_was_saved() {
+		$id = $this->create_template( $this->template_placing_a_synced_hero() );
+		$this->request_templates( 'GET', '/wp/v2/templates/' . $id );
+
+		$after    = '<!-- wp:paragraph --><p>After</p><!-- /wp:paragraph -->';
+		$template = $this->request_templates( 'POST', '/wp/v2/templates/' . $id, array( 'content' => $after ) );
+
+		$this->assertSame( $after, $template['content']['raw'] );
+	}
+
+	/**
+	 * A template's revisions keep their synced references, so restoring one
+	 * doesn't save copies in their place.
+	 *
+	 * Revisions are built straight from their posts, without the filters the
+	 * templates go through, so their content is read from the revision.
+	 */
+	public function test_template_revisions_keep_synced_references() {
+		$markup = $this->template_placing_a_synced_hero();
+		$id     = $this->create_template( '<!-- wp:paragraph --><p>Before</p><!-- /wp:paragraph -->' );
+		$this->request_templates( 'POST', '/wp/v2/templates/' . $id, array( 'content' => $markup ) );
+
+		$revisions = $this->request_templates( 'GET', '/wp/v2/templates/' . $id . '/revisions' );
+
+		$this->assertNotEmpty( $revisions );
+		$this->assert_keeps_the_hero( $revisions[0]['content']['raw'] );
+	}
+
+	/**
+	 * An autosave keeps them as well.
+	 */
+	public function test_template_autosave_keeps_synced_references() {
+		$markup = $this->template_placing_a_synced_hero();
+		$id     = $this->create_template( '<!-- wp:paragraph --><p>Before</p><!-- /wp:paragraph -->' );
+
+		$autosave = $this->request_templates( 'POST', '/wp/v2/templates/' . $id . '/autosaves', array( 'content' => $markup ) );
+
+		$this->assert_keeps_the_hero( $autosave['content']['raw'] );
+	}
+
+	/**
+	 * Plain references beside a synced one are still inlined, as core would,
+	 * including one that only reaches the synced pattern through another.
+	 */
+	public function test_template_route_inlines_plain_references_around_synced_ones() {
+		$hero  = $this->template_placing_a_synced_hero();
+		$plain = $this->register_pattern( 'test/plain', '<!-- wp:paragraph --><p>Inlined</p><!-- /wp:paragraph -->' );
+		$frame = $this->register_pattern( 'test/frame', $hero );
+		$id    = $this->create_template( $this->pattern_block( $plain ) . $this->pattern_block( $frame ) );
+
+		$template = $this->request_templates( 'GET', '/wp/v2/templates/' . $id );
+
+		$this->assertStringContainsString( 'Inlined', $template['content']['raw'] );
+		$this->assert_keeps_the_hero( $template['content']['raw'] );
+	}
+
+	/**
+	 * A template that places no synced pattern is served exactly as core
+	 * prepares it.
+	 */
+	public function test_template_route_leaves_templates_without_synced_patterns_alone() {
+		$plain  = $this->register_pattern( 'test/plain', '<!-- wp:paragraph --><p>Inlined</p><!-- /wp:paragraph -->' );
+		$markup = $this->pattern_block( $plain );
+		$id     = $this->create_template( $markup );
+
+		$template = $this->request_templates( 'GET', '/wp/v2/templates/' . $id );
+
+		$this->assertSame(
+			serialize_blocks( resolve_pattern_blocks( parse_blocks( $markup ) ) ),
+			$template['content']['raw']
+		);
+	}
+
+	/**
+	 * Outside the editor the templates routes are left to core.
+	 */
+	public function test_template_route_is_untouched_outside_the_editor() {
+		$id = $this->create_template( $this->template_placing_a_synced_hero() );
+
+		$template = $this->request_templates( 'GET', '/wp/v2/templates/' . $id, array(), false );
+
+		$this->assertEmpty( $this->find_blocks( parse_blocks( $template['content']['raw'] ), 'core/pattern' ) );
 	}
 
 	/**

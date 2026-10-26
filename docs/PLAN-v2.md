@@ -138,7 +138,7 @@ use the feature comes out exactly as it does without the plugin.
 
 ### 3. Editor — `Editor_Support`
 
-Two hook sites feed `Pattern_Resolver`:
+Three hook sites feed `Pattern_Resolver`:
 
 * `rest_request_after_callbacks` on `/wp/v2/block-patterns/patterns` — recomputes
   each pattern's content from the registry so the inserter, previews and
@@ -148,8 +148,15 @@ Two hook sites feed `Pattern_Resolver`:
   templates controller flattens it. The
   `synced_patterns_for_themes_is_editor_request` filter decides what counts as
   such a request; by default `wp_is_serving_rest_request()` does.
+* `rest_request_after_callbacks` on the templates and template parts routes,
+  their revisions and their autosaves. The controller flattens each template
+  after every filter has run, and builds one stored as a post without running
+  `get_block_template` at all, so a template that places a synced pattern (or,
+  stored as a post, a pattern with content) is composed again from the content
+  core started from: what the filters left, remembered at `PHP_INT_MAX`, or the
+  post built again the way core builds it.
 
-Both are guarded by a `strpos()` check for a pattern block, and
+All three are guarded by a `strpos()` check for a pattern block, and
 `Pattern_Resolver::resolve()` hands back the markup it was given when it changed
 nothing, so a site whose patterns don't use the feature pays almost nothing.
 
