@@ -173,11 +173,14 @@ that context reaches them, and core's own `core/pattern-overrides` binding sourc
 resolves the values. The plugin never substitutes one itself.
 
 **In the editor**, blocks are what matter rather than rendered HTML, and since
-6.6 core flattens `core/pattern` blocks server-side before the editor sees them —
-dropping the content on the way. So patterns and templates are composed first:
+6.6 core flattens `core/pattern` blocks server-side before the editor sees them,
+dropping the content on the way. So patterns and templates are composed for it:
 each pattern block with content becomes the blocks it stands for, the values are
-written into their markup, and the bindings that asked for them are removed. What
-the editor loads is plain, editable content.
+written into their markup, and the bindings that asked for them are removed. A
+reference to a synced pattern is kept as written, content and all, for the
+editor to render as an instance. Templates need that twice, because the
+templates controller flattens them again after every filter has run, so a
+template that places a synced pattern is composed once more on the way out.
 
 **In the browser**, a filter declares the `content` attribute so it survives a
 parse/serialize round trip, and a second one decides what a pattern block on the

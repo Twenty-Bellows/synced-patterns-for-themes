@@ -179,7 +179,8 @@ cannot correct it.
 = Does it work in the site editor? =
 
 Yes. Patterns, templates and template parts are all composed before the editor
-loads them, so what you see is what the front end renders.
+loads them, so what you see is what the front end renders. A synced pattern
+placed in a template stays a live instance there, just as it does in a post.
 
 = What if I use a slot name that the design pattern doesn't have? =
 
